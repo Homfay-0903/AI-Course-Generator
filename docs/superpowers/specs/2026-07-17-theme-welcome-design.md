@@ -61,7 +61,7 @@ export const Radius = { sm: 12, md: 16, lg: 24, xl: 32, pill: 999 } as const;
 
 ### 3.4 全局观感统一
 
-- `app.json`：splash 背景 `#208AEF` → `#FAF7F0`；Android adaptiveIcon 背景 `#E6F4FE` → `#DCF2E5`
+- `app.json`：splash 背景 `#208AEF` → `#33A06F`（主色绿，深浅模式共用；不用奶油底是因为现有 splash 图标为白色，奶油底上不可见）；Android adaptiveIcon 背景 `#E6F4FE` → `#DCF2E5`
 - `src/app/_layout.tsx`：导航主题不再用 expo-router 的 `DefaultTheme/DarkTheme` 原值，而是以其为基底覆盖 `colors.background/card/text/primary/border` 为上表 token，使系统导航区域（含 NativeTabs 背景）与主题一致
 - `Spacing`、`BottomTabInset`、`MaxContentWidth` 维持现状
 
