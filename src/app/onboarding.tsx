@@ -70,8 +70,8 @@ export default function OnboardingScreen() {
     ),
   }));
 
-  const finish = () => {
-    setHasSeenOnboarding();
+  const finish = async () => {
+    await setHasSeenOnboarding();
     router.replace('/');
   };
 

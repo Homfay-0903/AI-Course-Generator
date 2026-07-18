@@ -12,6 +12,6 @@ export async function getHasSeenOnboarding(): Promise<boolean> {
 }
 
 /** 写失败不阻塞导航：下次启动会再次展示引导，可接受。 */
-export function setHasSeenOnboarding(): void {
-  AsyncStorage.setItem(HAS_SEEN_ONBOARDING_KEY, '1').catch(() => {});
+export async function setHasSeenOnboarding(): Promise<void> {
+  await AsyncStorage.setItem(HAS_SEEN_ONBOARDING_KEY, '1').catch(() => {});
 }
