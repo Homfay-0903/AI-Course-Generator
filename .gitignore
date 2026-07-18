@@ -40,6 +40,17 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# screenshots
+*.png
+*.jpg
+*.jpeg
+
+# playwright
+.playwright-mcp/
+
+# local eslint config
+eslint.config.js
+
 example
 
 # generated native folders

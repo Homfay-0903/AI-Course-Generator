@@ -1,3 +1,5 @@
+import { ClerkProvider } from '@clerk/expo';
+import { tokenCache } from '@clerk/expo/token-cache';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
@@ -27,25 +29,31 @@ export default function RootLayout() {
   const base = isDark ? DarkTheme : DefaultTheme;
 
   return (
-    <ThemeProvider
-      value={{
-        ...base,
-        colors: {
-          ...base.colors,
-          primary: colors.primary,
-          background: colors.background,
-          card: colors.backgroundElement,
-          text: colors.text,
-          border: colors.border,
-        },
-      }}>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!hasSeenOnboarding}>
-          <Stack.Screen name="onboarding" />
-        </Stack.Protected>
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-    </ThemeProvider>
+    <ClerkProvider
+      publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+      tokenCache={tokenCache}
+    >
+      <ThemeProvider
+        value={{
+          ...base,
+          colors: {
+            ...base.colors,
+            primary: colors.primary,
+            background: colors.background,
+            card: colors.backgroundElement,
+            text: colors.text,
+            border: colors.border,
+          },
+        }}>
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Protected guard={!hasSeenOnboarding}>
+            <Stack.Screen name="onboarding" />
+          </Stack.Protected>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+      </ThemeProvider>
+    </ClerkProvider>
   );
 }
