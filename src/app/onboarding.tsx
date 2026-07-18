@@ -1,4 +1,6 @@
 import { useRouter } from 'expo-router';
+
+import { setHasSeenOnboarding } from '@/utils/onboarding-storage';
 import { useRef, useState } from 'react';
 import {
   type NativeScrollEvent,
@@ -69,6 +71,7 @@ export default function OnboardingScreen() {
   }));
 
   const finish = () => {
+    setHasSeenOnboarding();
     router.replace('/');
   };
 
