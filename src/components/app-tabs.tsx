@@ -106,7 +106,7 @@ function CustomTabBar({ state, navigation }: { state: TabNavigationState; naviga
 
 export default function AppTabs() {
   return (
-    <Tabs tabBar={(props: any) => <CustomTabBar {...props} />}>
+    <Tabs tabBar={(props: any) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" options={{ tabBarLabel: '营地' }} />
       <Tabs.Screen name="missions" options={{ tabBarLabel: '任务' }} />
       <Tabs.Screen name="stats" options={{ tabBarLabel: '统计数据' }} />

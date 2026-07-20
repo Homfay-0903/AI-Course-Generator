@@ -1,68 +1,68 @@
-import { useAuth, useUser } from '@clerk/expo';
-import { router } from 'expo-router';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { useAuth } from '@clerk/expo';
+import { ActivityIndicator, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { ThemedText } from '@/components/themed-text';
+import { CurrentMission } from '@/components/game/current-mission';
+import { DailyBounties } from '@/components/game/daily-bounties';
+import { HonorShowcase } from '@/components/game/honor-showcase';
+import { PlayerInfoCard } from '@/components/game/player-info-card';
+import { UnlockableRealms } from '@/components/game/unlockable-realms';
 import { ThemedView } from '@/components/themed-view';
-import { PrimaryButton } from '@/components/ui/primary-button';
-import { SecondaryButton } from '@/components/ui/secondary-button';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { MOCK_GAME_STATE } from '@/data/game-data';
+import { useAuthGuard } from '@/hooks/use-auth-guard';
+import { useGameStats } from '@/hooks/use-game-stats';
 
 export default function HomeScreen() {
-  const { isLoaded, isSignedIn, signOut } = useAuth();
-  const { user } = useUser();
+  const { isSignedIn } = useAuth();
+  const guardAction = useAuthGuard();
+  const { stats: dbStats, raw: dbRaw, loading: statsLoading } = useGameStats();
+
+  // Use real DB stats when signed in, mock data when signed out
+  const player = isSignedIn && dbStats ? dbStats : MOCK_GAME_STATE.player;
+  const coins = isSignedIn && dbRaw ? dbRaw.coins : 0;
+
+  const { currentMission, dailyBounties, realms, achievements } =
+    MOCK_GAME_STATE;
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            学习营地
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>
-            输入一个想法，AI 为你生成专属学习课程
-          </ThemedText>
-        </ThemedView>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        bounces={false}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          {/* ── 1. 玩家信息卡 ── */}
+          {isSignedIn && statsLoading ? (
+            <ActivityIndicator size="small" style={styles.loader} />
+          ) : (
+            <PlayerInfoCard player={player} coins={coins} />
+          )}
 
-        {!isLoaded ? (
-          <ActivityIndicator size="large" />
-        ) : isSignedIn && user ? (
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle">
-              欢迎回来
-              {user.fullName ? `，${user.fullName}` : ''}
-            </ThemedText>
-            <ThemedText style={styles.email}>
-              {user.primaryEmailAddress?.emailAddress}
-            </ThemedText>
-            <PrimaryButton label="开始学习" onPress={() => {}} />
-            <ThemedText
-              type="link"
-              style={styles.signOutLink}
-              onPress={() => signOut()}
-            >
-              退出登录
-            </ThemedText>
-          </ThemedView>
-        ) : (
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              登录以保存你的学习进度
-            </ThemedText>
-            <PrimaryButton
-              label="登录"
-              onPress={() => router.push('/(auth)/sign-in')}
+          {/* ── 2. 当前任务 ── */}
+          {currentMission && (
+            <CurrentMission
+              mission={currentMission}
+              onPress={() => guardAction(() => {})}
             />
-            <SecondaryButton
-              label="注册"
-              onPress={() => router.push('/(auth)/sign-up')}
-            />
-          </ThemedView>
-        )}
-      </SafeAreaView>
+          )}
+
+          {/* ── 3. 每日赏金 ── */}
+          <DailyBounties
+            bounties={dailyBounties}
+            onToggle={() => guardAction(() => {})}
+          />
+
+          {/* ── 4. 探索领域 ── */}
+          <UnlockableRealms
+            realms={realms}
+            onRealmPress={() => guardAction(() => {})}
+          />
+
+          {/* ── 5. 荣誉陈列柜 ── */}
+          <HonorShowcase achievements={achievements} />
+        </SafeAreaView>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -70,45 +70,19 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingBottom: BottomTabInset + Spacing.six,
   },
   safeArea: {
     flex: 1,
     paddingHorizontal: Spacing.four,
-    alignItems: 'center',
     gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
     maxWidth: MaxContentWidth,
+    width: '100%',
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.two,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  subtitle: {
-    textAlign: 'center',
-  },
-  card: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.five,
-    borderRadius: Spacing.four,
-    alignItems: 'center',
-  },
-  cardTitle: {
-    textAlign: 'center',
-  },
-  email: {
-    textAlign: 'center',
-  },
-  signOutLink: {
-    marginTop: Spacing.one,
+  loader: {
+    paddingVertical: Spacing.four,
   },
 });
