@@ -1,7 +1,7 @@
-import { useAuth, useSignIn } from '@clerk/expo';
+import { useSignIn } from '@clerk/expo';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -11,35 +11,38 @@ import { TextInput } from '@/components/ui/text-input';
 import { Spacing } from '@/constants/theme';
 
 export default function SignInScreen() {
-  const { isLoaded } = useAuth();
-  const { signIn } = useSignIn();
+  const { signIn, fetchStatus } = useSignIn();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
+
+  const isLoading = fetchStatus === 'fetching';
 
   const onSubmit = async () => {
-    if (!isLoaded || !signIn) return;
-    setError('');
-    setLoading(true);
+    if (!signIn) return;
+    setServerError('');
 
     try {
-      const result = await signIn.password({ identifier: email, password });
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
 
       if (result.error) {
-        setError(result.error.message ?? '登录失败，请检查邮箱和密码');
-      } else if (signIn.status === 'complete') {
+        setServerError(result.error.message ?? '登录失败，请检查邮箱和密码');
+        return;
+      }
+
+      if (signIn.status === 'complete') {
         await signIn.finalize();
-        // Auth layout's useAuth() will react and <Redirect> fires automatically
+        // Auth layout's useAuth() reacts and <Redirect> fires
       } else {
-        setError('登录状态异常，请重试');
+        setServerError(`登录状态异常 (${signIn.status})`);
       }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : '登录失败，请检查邮箱和密码';
-      setError(message);
-    } finally {
-      setLoading(false);
+      setServerError(message);
     }
   };
 
@@ -73,14 +76,14 @@ export default function SignInScreen() {
             textContentType="password"
           />
 
-          {error ? (
+          {serverError ? (
             <ThemedText type="small" style={styles.error}>
-              {error}
+              {serverError}
             </ThemedText>
           ) : null}
 
           <PrimaryButton
-            label={loading ? '登录中...' : '登录'}
+            label={isLoading ? '登录中…' : '登录'}
             onPress={onSubmit}
           />
 
@@ -91,6 +94,9 @@ export default function SignInScreen() {
           >
             没有账号？注册
           </ThemedText>
+
+          {/* Required by Clerk for bot protection (CAPTCHA) */}
+          <View nativeID="clerk-captcha" />
         </KeyboardAvoidingView>
       </SafeAreaView>
     </ThemedView>
