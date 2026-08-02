@@ -1,4 +1,10 @@
-import type { Achievement, Bounty, GameState, Mission, PlayerStats, Realm } from '@/types/game';
+/**
+ * Mock game data — signed-out preview ONLY.
+ *
+ * Signed-in users are served real data from the API via useGameState().
+ * Realm defs moved to src/data/game-defs.ts (level-gated, shared by all users).
+ */
+import type { Achievement, Bounty, GameState, Mission, PlayerStats } from '@/types/game';
 
 // ── Player ──────────────────────────────────────────────
 
@@ -47,65 +53,6 @@ const dailyBounties: Bounty[] = [
   },
 ];
 
-// ── Realms ──────────────────────────────────────────────
-
-const realms: Realm[] = [
-  {
-    id: 'realm-1',
-    title: 'React Native 领域',
-    subtitle: '移动端开发入门',
-    locked: false,
-    isHot: true,
-    difficulty: 'beginner',
-    imageAsset: require('@/assets/images/outpost.png'),
-  },
-  {
-    id: 'realm-2',
-    title: 'TypeScript 圣殿',
-    subtitle: '类型系统进阶',
-    locked: false,
-    isHot: false,
-    difficulty: 'intermediate',
-    imageAsset: require('@/assets/images/fort.png'),
-  },
-  {
-    id: 'realm-3',
-    title: '算法迷宫',
-    subtitle: '数据结构与算法',
-    locked: true,
-    isHot: false,
-    difficulty: 'advanced',
-    imageAsset: require('@/assets/images/fortress.png'),
-  },
-  {
-    id: 'realm-4',
-    title: 'Python 领地',
-    subtitle: '数据分析与 AI',
-    locked: false,
-    isHot: true,
-    difficulty: 'beginner',
-    imageAsset: require('@/assets/images/citadel.png'),
-  },
-  {
-    id: 'realm-5',
-    title: '系统设计堡垒',
-    subtitle: '架构与分布式',
-    locked: true,
-    isHot: false,
-    difficulty: 'advanced',
-    imageAsset: require('@/assets/images/fortress.png'),
-  },
-  {
-    id: 'realm-6',
-    title: '前端魔法森林',
-    subtitle: 'HTML/CSS/JS 全掌握',
-    locked: false,
-    isHot: false,
-    difficulty: 'beginner',
-    imageAsset: require('@/assets/images/outpost.png'),
-  },
-];
-
 // ── Achievements ────────────────────────────────────────
 
 const achievements: Achievement[] = [
@@ -149,12 +96,11 @@ const achievements: Achievement[] = [
   },
 ];
 
-// ── Aggregated State ────────────────────────────────────
+// ── Aggregated State (signed-out preview only) ──────────
 
 export const MOCK_GAME_STATE: GameState = {
   player,
   currentMission,
   dailyBounties,
-  realms,
   achievements,
 };

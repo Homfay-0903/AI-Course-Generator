@@ -10,20 +10,30 @@ import { UnlockableRealms } from '@/components/game/unlockable-realms';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { MOCK_GAME_STATE } from '@/data/game-data';
+import { isRealmLocked, REALM_DEFS } from '@/data/game-defs';
 import { useAuthGuard } from '@/hooks/use-auth-guard';
-import { useGameStats } from '@/hooks/use-game-stats';
+import { useGameState } from '@/hooks/use-game-state';
 
 export default function HomeScreen() {
   const { isSignedIn } = useAuth();
   const guardAction = useAuthGuard();
-  const { stats: dbStats, raw: dbRaw, loading: statsLoading } = useGameStats();
+  const { state: gameState, loading: statsLoading } = useGameState();
 
   // Use real DB stats when signed in, mock data when signed out
-  const player = isSignedIn && dbStats ? dbStats : MOCK_GAME_STATE.player;
-  const coins = isSignedIn && dbRaw ? dbRaw.coins : 0;
+  const player = isSignedIn && gameState ? gameState.player : MOCK_GAME_STATE.player;
+  const coins = isSignedIn && gameState ? gameState.player.coins : 0;
 
-  const { currentMission, dailyBounties, realms, achievements } =
+  const { currentMission, dailyBounties, achievements } =
     MOCK_GAME_STATE;
+
+  // Realms come from shared defs; lock state follows the player level.
+  const realms = REALM_DEFS.map((realm) => ({
+    ...realm,
+    locked: isRealmLocked(
+      realm,
+      isSignedIn && gameState ? gameState.player.level : MOCK_GAME_STATE.player.level,
+    ),
+  }));
 
   return (
     <ThemedView style={styles.container}>

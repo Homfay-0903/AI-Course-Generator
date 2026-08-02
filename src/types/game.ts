@@ -74,7 +74,6 @@ export interface GameState {
   player: PlayerStats;
   currentMission: Mission | null;
   dailyBounties: Bounty[];
-  realms: Realm[];
   achievements: Achievement[];
 }
 
