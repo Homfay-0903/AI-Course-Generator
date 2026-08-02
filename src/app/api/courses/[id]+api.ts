@@ -49,8 +49,11 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Course not found' }, { status: 404 });
     }
 
+    const responseBody: Record<string, unknown> = {
+      course,
+    };
+
     // Resolve the user for per-lesson completion annotations.
-    let user = null;
     let completionSet: Set<string> | null = null;
     if (email) {
       const userRow = await db
@@ -58,7 +61,11 @@ export async function GET(request: Request) {
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
-      user = userRow[0] ?? null;
+      const user = userRow[0] ?? null;
+      if (user) {
+        completionSet = await getCompletionSet(user.id, course.id);
+        responseBody.progress = await getCourseProgress(user.id, course.id);
+      }
     }
 
     // Fetch chapters for this course, ordered by `order`
@@ -87,15 +94,7 @@ export async function GET(request: Request) {
       }),
     );
 
-    const responseBody: Record<string, unknown> = {
-      course,
-      chapters: chaptersWithLessons,
-    };
-
-    if (user) {
-      completionSet ??= await getCompletionSet(user.id, course.id);
-      responseBody.progress = await getCourseProgress(user.id, course.id);
-    }
+    responseBody.chapters = chaptersWithLessons;
 
     return Response.json(responseBody);
   } catch (error) {

@@ -52,6 +52,8 @@ export default function RootLayout() {
           </Stack.Protected>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="course/[id]" />
+          <Stack.Screen name="lesson/[id]" />
         </Stack>
       </ThemeProvider>
     </ClerkProvider>
