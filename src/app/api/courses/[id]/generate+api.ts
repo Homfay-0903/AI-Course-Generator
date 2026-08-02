@@ -82,83 +82,82 @@ export async function POST(request: Request) {
       .set({ status: 'generating', updatedAt: new Date() })
       .where(eq(courses.id, id));
 
-    // ── Step 2: Call GLM to generate content ─────────────
-    let generated;
-    try {
-      generated = await generateCourseContent(
-        course.description,
-        course.difficulty,
-      );
-    } catch (error) {
-      // Mark as failed so the user can retry
-      await db
-        .update(courses)
-        .set({ status: 'failed', updatedAt: new Date() })
-        .where(eq(courses.id, id));
+    // ── Step 2: Fire off GLM generation in the background ─
+    //    We don't await — the client polls course status.
+    //    This avoids HTTP timeouts on long-running LLM calls.
+    const courseDesc = course.description;
+    const courseDiff = course.difficulty;
+    const courseTitle = course.title;
 
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
-      console.error('GLM generation failed for course', id, ':', message);
-      return Response.json(
-        { error: `AI 生成失败：${message}` },
-        { status: 502 },
-      );
-    }
+    setTimeout(async () => {
+      try {
+        const generated = await generateCourseContent(courseDesc, courseDiff);
 
-    // ── Step 3: Write chapters and lessons to DB ─────────
-    let chapterOrder = 0;
-    for (const genChapter of generated.chapters) {
-      const [savedChapter] = await db
-        .insert(chapters)
-        .values({
-          courseId: id,
-          title: genChapter.title,
-          description: genChapter.description ?? null,
-          order: chapterOrder,
-        })
-        .returning();
+        // Write chapters and lessons to DB
+        let chapterOrder = 0;
+        for (const genChapter of generated.chapters) {
+          const [savedChapter] = await db
+            .insert(chapters)
+            .values({
+              courseId: id,
+              title: genChapter.title,
+              description: genChapter.description ?? null,
+              order: chapterOrder,
+            })
+            .returning();
 
-      if (!savedChapter) continue;
+          if (!savedChapter) continue;
 
-      let lessonOrder = 0;
-      for (const genLesson of genChapter.lessons) {
-        await db.insert(lessons).values({
-          chapterId: savedChapter.id,
-          title: genLesson.title,
-          content: genLesson.content,
-          order: lessonOrder,
-        });
-        lessonOrder++;
+          let lessonOrder = 0;
+          for (const genLesson of genChapter.lessons) {
+            await db.insert(lessons).values({
+              chapterId: savedChapter.id,
+              title: genLesson.title,
+              content: genLesson.content,
+              order: lessonOrder,
+            });
+            lessonOrder++;
+          }
+          chapterOrder++;
+        }
+
+        // Mark as ready
+        await db
+          .update(courses)
+          .set({
+            status: 'ready',
+            icon: generated.icon,
+            title: courseTitle,
+            updatedAt: new Date(),
+          })
+          .where(eq(courses.id, id));
+
+        console.log('Course generation completed for', id);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('Background generation failed for course', id, ':', errMsg);
+        try {
+          await db
+            .update(courses)
+            .set({
+              status: 'failed',
+              description: `ERROR: ${errMsg.slice(0, 500)}`, // Store error for debugging
+              updatedAt: new Date(),
+            })
+            .where(eq(courses.id, id));
+        } catch {
+          // Best effort
+        }
       }
-      chapterOrder++;
-    }
+    }, 0);
 
-    // ── Step 4: Mark as ready ────────────────────────────
-    const [updatedCourse] = await db
-      .update(courses)
-      .set({
-        status: 'ready',
-        icon: generated.icon,
-        title: course.title, // keep original title (user's summary)
-        updatedAt: new Date(),
-      })
-      .where(eq(courses.id, id))
-      .returning();
-
-    return Response.json({ course: updatedCourse }, { status: 200 });
+    // Return immediately — client will poll for status changes
+    return Response.json(
+      { course: { ...course, status: 'generating' }, message: 'Generation started' },
+      { status: 202 },
+    );
   } catch (error) {
     console.error('POST /api/courses/[id]/generate error:', error);
-
-    // Attempt to mark as failed on unexpected errors
-    try {
-      await db
-        .update(courses)
-        .set({ status: 'failed', updatedAt: new Date() })
-        .where(eq(courses.id, id));
-    } catch {
-      // Best effort — ignore
-    }
-
     return Response.json(
       { error: 'Internal server error' },
       { status: 500 },
