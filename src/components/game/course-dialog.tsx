@@ -1,5 +1,5 @@
 import { Sparkles } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -28,6 +28,8 @@ export type CourseDialogProps = {
   onCancel: () => void;
   onSubmit: (data: CourseDialogData) => void;
   loading?: boolean;
+  /** Pre-fill the description field each time the dialog opens (e.g. realm preset). */
+  initialDescription?: string;
 };
 
 const DIFFICULTY_OPTIONS: { key: RealmDifficulty; label: string; desc: string }[] = [
@@ -47,11 +49,22 @@ export function CourseDialog({
   onCancel,
   onSubmit,
   loading = false,
+  initialDescription,
 }: CourseDialogProps) {
   const theme = useTheme();
   const [description, setDescription] = useState('');
   const [difficulty, setDifficulty] = useState<RealmDifficulty>('beginner');
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill the description whenever the dialog opens.
+  useEffect(() => {
+    if (visible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDescription(initialDescription ?? '');
+      setDifficulty('beginner');
+      setError(null);
+    }
+  }, [visible, initialDescription]);
 
   const handleSubmit = () => {
     const trimmed = description.trim();
