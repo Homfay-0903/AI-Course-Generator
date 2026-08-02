@@ -22,6 +22,13 @@ export interface GameState {
   stats: GameStatsPayload;
 }
 
+/** Result of a bounty claim attempt. */
+export interface ClaimResult {
+  success: boolean;
+  title: string;
+  message: string;
+}
+
 interface UseGameStateResult {
   /** Real game state from the API, or null while loading / when signed out. */
   state: GameState | null;
@@ -29,6 +36,8 @@ interface UseGameStateResult {
   error: string | null;
   /** Re-fetch the game state (after completing a lesson or claiming a bounty). */
   refresh: () => Promise<void>;
+  /** Claim a daily bounty; on success the game state is refreshed. */
+  claimBounty: (bountyKey: string) => Promise<ClaimResult>;
 }
 
 /**
@@ -97,13 +106,51 @@ export function useGameState(): UseGameStateResult {
 
   const refresh = useCallback(() => fetchState(true), [fetchState]);
 
+  const claimBounty = useCallback(
+    async (bountyKey: string): Promise<ClaimResult> => {
+      if (!isSignedIn || email === null) {
+        return { success: false, title: '需要登录', message: '登录后才能领取赏金' };
+      }
+
+      try {
+        const res = await fetch('/api/bounties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userEmail: email, bountyKey }),
+        });
+
+        if (res.status === 409) {
+          return { success: false, title: '已领取', message: '该赏金今天已经领取过了' };
+        }
+
+        if (!res.ok) {
+          const err = await res.json();
+          return {
+            success: false,
+            title: '任务尚未完成',
+            message: err.error ?? '完成对应任务后再来领取',
+          };
+        }
+
+        const result = await res.json();
+        const unit = result.reward?.type === 'coins' ? '金币' : 'XP';
+        const message = `+${result.reward?.amount ?? 0} ${unit}${result.leveledUp ? ' · 恭喜升级！' : ''}`;
+        void refresh();
+        return { success: true, title: '领取成功', message };
+      } catch {
+        return { success: false, title: '网络错误', message: '请检查网络连接后重试' };
+      }
+    },
+    [isSignedIn, email, refresh],
+  );
+
   if (!authLoaded) {
-    return { state: null, loading: true, error: null, refresh };
+    return { state: null, loading: true, error: null, refresh, claimBounty };
   }
 
   if (!isSignedIn || email === null) {
-    return { state: null, loading: false, error: null, refresh };
+    return { state: null, loading: false, error: null, refresh, claimBounty };
   }
 
-  return { state, loading, error, refresh };
+  return { state, loading, error, refresh, claimBounty };
 }

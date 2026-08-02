@@ -26,7 +26,7 @@ export default function HomeScreen() {
   const { user } = useUser();
   const router = useRouter();
   const guardAction = useAuthGuard();
-  const { state: gameState, loading: statsLoading, refresh } = useGameState();
+  const { state: gameState, loading: statsLoading, refresh, claimBounty } = useGameState();
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogPreset, setDialogPreset] = useState<string | undefined>(undefined);
@@ -65,37 +65,10 @@ export default function HomeScreen() {
       return;
     }
     const bounty = gameState.bounties.find((b) => b.id === id);
-    if (!bounty || bounty.completed || !userEmail) return;
+    if (!bounty || bounty.completed) return;
 
-    try {
-      const res = await fetch('/api/bounties', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail, bountyKey: id }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        if (res.status === 400) {
-          Alert.alert('任务尚未完成', err.error ?? '完成对应任务后再来领取');
-        } else if (res.status === 409) {
-          Alert.alert('已领取', err.error ?? '该赏金今天已经领取过了');
-        } else {
-          Alert.alert('领取失败', err.error ?? '请稍后重试');
-        }
-        refresh();
-        return;
-      }
-
-      const result = await res.json();
-      const unit = result.reward?.type === 'coins' ? '金币' : 'XP';
-      const parts = [`+${result.reward?.amount ?? 0} ${unit}`];
-      if (result.leveledUp) parts.push('恭喜升级！');
-      Alert.alert('领取成功', parts.join(' '));
-      refresh();
-    } catch {
-      Alert.alert('网络错误', '请检查网络连接后重试');
-    }
+    const result = await claimBounty(id);
+    Alert.alert(result.title, result.message);
   };
 
   // ── Realm discovery → course creation ─────────────────

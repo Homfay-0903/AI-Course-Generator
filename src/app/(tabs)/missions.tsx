@@ -1,28 +1,29 @@
 import { useAuth, useUser } from '@clerk/expo';
+import { useRouter } from 'expo-router';
 import { Sparkles, Swords, Target, TrendingUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActiveCourses, type ActiveCourse } from '@/components/game/active-courses';
-import {
-  CourseDialog,
-  type CourseDialogData,
-} from '@/components/game/course-dialog';
+import { CourseDialog, type CourseDialogData } from '@/components/game/course-dialog';
 import { DailyBounties } from '@/components/game/daily-bounties';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { MOCK_GAME_STATE } from '@/data/game-data';
 import { useAuthGuard } from '@/hooks/use-auth-guard';
+import { useGameState } from '@/hooks/use-game-state';
 import { useTheme } from '@/hooks/use-theme';
+import { createCourseAndGenerate, retryCourseGeneration } from '@/lib/create-course';
 
 export default function MissionsScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { user } = useUser();
   const guardAction = useAuthGuard();
+  const { state: gameState, claimBounty } = useGameState();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -37,17 +38,13 @@ export default function MissionsScreen() {
 
     setCoursesLoading(true);
     try {
-      const userRes = await fetch(
-        `/api/user?email=${encodeURIComponent(userEmail)}`,
-      );
+      const userRes = await fetch(`/api/user?email=${encodeURIComponent(userEmail)}`);
       if (!userRes.ok) return;
 
       const { user: dbUser } = await userRes.json();
       if (!dbUser?.id) return;
 
-      const coursesRes = await fetch(
-        `/api/courses?userId=${encodeURIComponent(dbUser.id)}`,
-      );
+      const coursesRes = await fetch(`/api/courses?userId=${encodeURIComponent(dbUser.id)}`);
       if (!coursesRes.ok) return;
 
       const { courses: dbCourses } = await coursesRes.json();
@@ -65,8 +62,8 @@ export default function MissionsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSignedIn, userEmail]);
 
-  // ── Handle course creation + AI generation ─────────────
-  const handleCreateCourse = async (data: CourseDialogData) => {
+  // ── Course creation + AI generation ────────────────────
+  const handleCreateCourse = (data: CourseDialogData) => {
     if (!isSignedIn || !userEmail) {
       guardAction(() => {});
       return;
@@ -75,105 +72,94 @@ export default function MissionsScreen() {
     setSubmitting(true);
     setDialogOpen(false);
 
-    // Step 1: Create the course (status: 'draft')
-    let course: ActiveCourse;
-    try {
-      const res = await fetch('/api/courses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userEmail,
-          title: data.description.slice(0, 50),
-          description: data.description,
-          difficulty: data.difficulty,
-        }),
-      });
+    createCourseAndGenerate(userEmail, data, {
+      onCourseCreated: (course) => {
+        setCourses((prev) => [course, ...prev]);
+      },
+      setCourseStatus: (id, status) => {
+        setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+      },
+      onCourseUpdated: (course) => {
+        setCourses((prev) => prev.map((c) => (c.id === course.id ? course : c)));
+      },
+      onError: (title, message) => Alert.alert(title, message),
+      onDone: () => setSubmitting(false),
+    });
+  };
 
-      if (!res.ok) {
-        const err = await res.json();
-        Alert.alert('创建失败', err.error ?? '请稍后重试');
-        setSubmitting(false);
-        return;
-      }
-
-      const result = await res.json();
-      course = result.course;
-    } catch {
-      Alert.alert('网络错误', '请检查网络连接后重试');
-      setSubmitting(false);
+  // ── Course press: ready → detail, failed → retry, else no-op ──
+  const handleCoursePress = (course: ActiveCourse) => {
+    if (!isSignedIn) {
+      guardAction(() => {});
       return;
     }
 
-    // Add course to list immediately (status: 'draft')
-    setCourses((prev) => [course, ...prev]);
+    if (course.status === 'ready') {
+      router.push({ pathname: '/course/[id]', params: { id: course.id } });
+      return;
+    }
 
-    // Step 2: Trigger AI generation
-    setCourseGenerating(course.id, true);
-    try {
-      const genRes = await fetch(`/api/courses/${course.id}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail }),
-      });
-
-      if (!genRes.ok) {
-        const err = await genRes.json();
-        setCourseFailed(course.id);
-        Alert.alert('生成失败', err.error ?? 'AI 生成课程内容失败，请稍后重试');
-        return;
-      }
-
-      const { course: updatedCourse } = await genRes.json();
-      setCourseUpdated(course.id, updatedCourse);
-      Alert.alert('课程生成成功', `"${updatedCourse.title}" 已准备就绪，开始学习吧！`);
-    } catch {
-      setCourseFailed(course.id);
-      Alert.alert('网络错误', 'AI 生成超时，请检查网络后重试');
-    } finally {
-      setCourseGenerating(course.id, false);
-      setSubmitting(false);
+    if (course.status === 'failed') {
+      if (!userEmail) return;
+      Alert.alert('生成失败', '课程内容生成失败，是否重新生成？', [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '重新生成',
+          onPress: () => {
+            retryCourseGeneration(userEmail, course.id, {
+              onCourseCreated: () => {},
+              setCourseStatus: (id, status) => {
+                setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+              },
+              onCourseUpdated: (updated) => {
+                setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+              },
+              onError: (title, message) => Alert.alert(title, message),
+              onDone: () => {},
+            });
+          },
+        },
+      ]);
     }
   };
 
-  /** Update a course in the list with new data (e.g. after generation). */
-  const setCourseUpdated = (id: string, updated: ActiveCourse) => {
-    setCourses((prev) => prev.map((c) => (c.id === id ? updated : c)));
+  // ── Daily bounty claim (same flow as Home) ─────────────
+  const handleBountyToggle = async (id: string) => {
+    if (!isSignedIn || !gameState) {
+      guardAction(() => {});
+      return;
+    }
+    const bounty = gameState.bounties.find((b) => b.id === id);
+    if (!bounty || bounty.completed) return;
+
+    const result = await claimBounty(id);
+    Alert.alert(result.title, result.message);
   };
 
-  /** Mark a course as 'generating'. */
-  const setCourseGenerating = (id: string, active: boolean) => {
-    setCourses((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, status: active ? ('generating' as const) : c.status }
-          : c,
-      ),
-    );
-  };
-
-  /** Mark a course as 'failed'. */
-  const setCourseFailed = (id: string) => {
-    setCourses((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, status: 'failed' as const } : c,
-      ),
-    );
-  };
-
-  /** Open the create dialog — no auth required to browse the form. */
-  const handleCreatePress = () => {
-    setDialogOpen(true);
-  };
-
-  // ── Mock bounties ──────────────────────────────────────
-  const { dailyBounties } = MOCK_GAME_STATE;
-
-  // ── Quick stats (mock) ─────────────────────────────────
+  // ── Quick stats (real data when signed in, 0 otherwise) ─
+  const stats = gameState?.stats;
   const quickStats = [
-    { icon: Target, label: '已创建', value: `${courses.length} 门`, color: theme.primary },
-    { icon: TrendingUp, label: '连续学习', value: '3 天', color: theme.accent },
-    { icon: Sparkles, label: '总经验', value: '720 XP', color: '#7C5CFC' },
+    {
+      icon: Target,
+      label: '已创建',
+      value: `${stats?.createdCourses ?? 0} 门`,
+      color: theme.primary,
+    },
+    {
+      icon: TrendingUp,
+      label: '连续学习',
+      value: `${stats?.streakDays ?? 0} 天`,
+      color: theme.accent,
+    },
+    {
+      icon: Sparkles,
+      label: '总经验',
+      value: `${gameState?.player.totalXP ?? 0} XP`,
+      color: '#7C5CFC',
+    },
   ];
+
+  const bounties = isSignedIn && gameState ? gameState.bounties : [];
 
   return (
     <ThemedView style={styles.container}>
@@ -238,7 +224,7 @@ export default function MissionsScreen() {
 
               <PrimaryButton
                 label="开始创建"
-                onPress={handleCreatePress}
+                onPress={() => setDialogOpen(true)}
                 style={styles.createBtn}
               />
             </View>
@@ -250,24 +236,13 @@ export default function MissionsScreen() {
           ) : (
             <ActiveCourses
               courses={courses}
-              onCreateNew={handleCreatePress}
-              onCoursePress={(course) => {
-                guardAction(() => {
-                  Alert.alert(course.title, '课程学习功能即将上线！');
-                });
-              }}
+              onCreateNew={() => setDialogOpen(true)}
+              onCoursePress={handleCoursePress}
             />
           )}
 
           {/* ── Daily bounties ── */}
-          <DailyBounties
-            bounties={dailyBounties}
-            onToggle={() =>
-              guardAction(() => {
-                Alert.alert('任务完成', '每日赏金功能即将上线！');
-              })
-            }
-          />
+          <DailyBounties bounties={bounties} onToggle={handleBountyToggle} />
 
           {/* Bottom safe spacer */}
           <View style={{ height: BottomTabInset }} />

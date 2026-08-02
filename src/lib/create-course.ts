@@ -91,8 +91,39 @@ export async function createCourseAndGenerate(
   }
 }
 
+/** Retry AI generation for an existing course (status → 'generating', then poll). */
+export async function retryCourseGeneration(
+  userEmail: string,
+  courseId: string,
+  cb: CreateCourseCallbacks,
+): Promise<void> {
+  try {
+    const genRes = await fetch(`/api/courses/${courseId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail }),
+    });
+
+    if (!genRes.ok) {
+      const err = await genRes.json();
+      cb.setCourseStatus(courseId, 'failed');
+      cb.onError('生成失败', err.error ?? 'AI 生成课程内容失败，请稍后重试');
+      cb.onDone();
+      return;
+    }
+
+    cb.setCourseStatus(courseId, 'generating');
+    pollCourseStatus(courseId, cb);
+  } catch {
+    cb.setCourseStatus(courseId, 'failed');
+    cb.onError('网络错误', '请检查网络连接后重试');
+  } finally {
+    cb.onDone();
+  }
+}
+
 /** Poll a course until generation completes (status → ready or failed). */
-function pollCourseStatus(courseId: string, cb: CreateCourseCallbacks): void {
+export function pollCourseStatus(courseId: string, cb: CreateCourseCallbacks): void {
   const startedAt = Date.now();
 
   const poll = async () => {
