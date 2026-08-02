@@ -1,19 +1,25 @@
 import { asc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { chapters, courses, lessons } from '@/db/schema';
+import { chapters, courses, lessons, users } from '@/db/schema';
+import { getCompletionSet, getCourseProgress } from '@/lib/game';
 
 /**
  * GET /api/courses/[id]
  *
  * Returns a single course with its chapters and lessons nested.
  *
+ * Query parameters:
+ *   ?email=user@example.com  — optional; when provided, each lesson is
+ *     annotated with `completed` and a top-level `progress` object is added.
+ *
  * Response shape:
  *   {
  *     course: { ...course },
  *     chapters: [
- *       { ...chapter, lessons: [{ ...lesson }] }
- *     ]
+ *       { ...chapter, lessons: [{ ...lesson, completed: boolean }] }
+ *     ],
+ *     progress?: { completedLessons, totalLessons, percent }
  *   }
  */
 export async function GET(request: Request) {
@@ -21,6 +27,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/');
   const id = pathParts[pathParts.indexOf('courses') + 1];
+  const email = url.searchParams.get('email');
 
   if (!id) {
     return Response.json(
@@ -42,6 +49,18 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Course not found' }, { status: 404 });
     }
 
+    // Resolve the user for per-lesson completion annotations.
+    let user = null;
+    let completionSet: Set<string> | null = null;
+    if (email) {
+      const userRow = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+      user = userRow[0] ?? null;
+    }
+
     // Fetch chapters for this course, ordered by `order`
     const chapterRows = await db
       .select()
@@ -60,15 +79,25 @@ export async function GET(request: Request) {
 
         return {
           ...chapter,
-          lessons: lessonRows,
+          lessons: lessonRows.map((lesson) => ({
+            ...lesson,
+            completed: completionSet?.has(lesson.id) ?? false,
+          })),
         };
       }),
     );
 
-    return Response.json({
+    const responseBody: Record<string, unknown> = {
       course,
       chapters: chaptersWithLessons,
-    });
+    };
+
+    if (user) {
+      completionSet ??= await getCompletionSet(user.id, course.id);
+      responseBody.progress = await getCourseProgress(user.id, course.id);
+    }
+
+    return Response.json(responseBody);
   } catch (error) {
     console.error('GET /api/courses/[id] error:', error);
     return Response.json(
