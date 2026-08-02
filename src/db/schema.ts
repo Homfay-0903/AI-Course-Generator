@@ -1,4 +1,4 @@
-import { integer, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 
 /**
  * User table.
@@ -102,3 +102,75 @@ export type Lesson = typeof lessons.$inferSelect;
 
 /** Shape for inserting a new lesson. */
 export type NewLesson = typeof lessons.$inferInsert;
+
+/**
+ * Lesson completions table — one row per completed lesson per user.
+ *
+ * The unique index on (userId, lessonId) prevents duplicate rewards:
+ * completing a lesson twice never grants XP/coins a second time.
+ */
+export const lessonCompletions = pgTable(
+  'lesson_completions',
+  {
+    id: varchar('id', { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id),
+    lessonId: varchar('lesson_id', { length: 36 }).notNull().references(() => lessons.id),
+    xpEarned: integer('xp_earned').notNull().default(0),
+    coinsEarned: integer('coins_earned').notNull().default(0),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('lesson_completions_user_lesson_idx').on(t.userId, t.lessonId)],
+);
+
+/** Full lesson completion row as returned by SELECT. */
+export type LessonCompletion = typeof lessonCompletions.$inferSelect;
+
+/** Shape for inserting a new lesson completion. */
+export type NewLessonCompletion = typeof lessonCompletions.$inferInsert;
+
+/**
+ * Bounty completions table — daily bounty claims.
+ *
+ * `day` is a 'YYYY-MM-DD' string (server-local date). The unique index on
+ * (userId, bountyKey, day) means each bounty can only be claimed once per day.
+ */
+export const bountyCompletions = pgTable(
+  'bounty_completions',
+  {
+    id: varchar('id', { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id),
+    bountyKey: varchar('bounty_key', { length: 50 }).notNull(),
+    day: varchar('day', { length: 10 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('bounty_completions_user_bounty_day_idx').on(t.userId, t.bountyKey, t.day)],
+);
+
+/** Full bounty completion row as returned by SELECT. */
+export type BountyCompletion = typeof bountyCompletions.$inferSelect;
+
+/** Shape for inserting a new bounty completion. */
+export type NewBountyCompletion = typeof bountyCompletions.$inferInsert;
+
+/**
+ * User achievements table — one row per unlocked achievement per user.
+ *
+ * The unique index on (userId, achievementKey) means each achievement can
+ * only be unlocked once.
+ */
+export const userAchievements = pgTable(
+  'user_achievements',
+  {
+    id: varchar('id', { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id),
+    achievementKey: varchar('achievement_key', { length: 50 }).notNull(),
+    unlockedAt: timestamp('unlocked_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('user_achievements_user_key_idx').on(t.userId, t.achievementKey)],
+);
+
+/** Full user achievement row as returned by SELECT. */
+export type UserAchievement = typeof userAchievements.$inferSelect;
+
+/** Shape for inserting a new user achievement. */
+export type NewUserAchievement = typeof userAchievements.$inferInsert;
