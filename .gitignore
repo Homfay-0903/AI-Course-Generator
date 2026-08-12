@@ -41,9 +41,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # screenshots
-*.png
-*.jpg
-*.jpeg
+screenshots/
+**/screenshots/
 
 # playwright
 .playwright-mcp/
