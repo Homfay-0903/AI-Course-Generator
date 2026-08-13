@@ -25,7 +25,7 @@ export default function MissionsScreen() {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { user } = useUser();
   const guardAction = useAuthGuard();
-  const { state: gameState, claimBounty } = useGameState();
+  const { state: gameState, claimBounty, refresh } = useGameState();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [courses, setCourses] = useState<ActiveCourse[]>([]);
@@ -103,8 +103,15 @@ export default function MissionsScreen() {
 
     if (course.status === 'failed') {
       if (!userEmail) return;
-      Alert.alert('生成失败', '课程内容生成失败，是否重新生成？', [
+      Alert.alert('生成失败', '课程内容生成失败，请选择操作：', [
         { text: '取消', style: 'cancel' },
+        {
+          text: '删除课程',
+          style: 'destructive',
+          onPress: () => {
+            void handleDeleteCourse(course);
+          },
+        },
         {
           text: '重新生成',
           onPress: () => {
@@ -122,6 +129,26 @@ export default function MissionsScreen() {
           },
         },
       ]);
+    }
+  };
+
+  // ── Delete a failed course ─────────────────────────────
+  const handleDeleteCourse = async (course: ActiveCourse) => {
+    if (!userEmail) return;
+    try {
+      const res = await fetch(
+        `/api/courses/${course.id}?email=${encodeURIComponent(userEmail)}`,
+        { method: 'DELETE' },
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        Alert.alert('删除失败', err.error ?? '请稍后重试');
+        return;
+      }
+      setCourses((prev) => prev.filter((c) => c.id !== course.id));
+      if (gameState) refresh();
+    } catch {
+      Alert.alert('网络错误', '请检查网络连接后重试');
     }
   };
 
