@@ -1,8 +1,9 @@
 import { AlertCircle, BookOpen, ChevronRight, Clock, Loader, Sparkles } from 'lucide-react-native';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemedActivityIndicator } from '@/components/ui/activity-indicator';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { RealmDifficulty } from '@/types/game';
@@ -119,7 +120,7 @@ export function ActiveCourses({
                 {/* Icon */}
                 <View style={[styles.courseIcon, { backgroundColor: theme.backgroundSelected }]}>
                   {isGenerating ? (
-                    <ActivityIndicator size="small" color={theme.primary} />
+                    <ThemedActivityIndicator size={16} color={theme.primary} />
                   ) : (
                     <ThemedText style={styles.iconEmoji}>
                       {course.icon ?? '📚'}
@@ -157,7 +158,7 @@ export function ActiveCourses({
                   </ThemedText>
                   <View style={styles.statusRow}>
                     {isGenerating ? (
-                      <ActivityIndicator size={10} color={statusColor} />
+                      <ThemedActivityIndicator size={10} color={statusColor} />
                     ) : (
                       <StatusIcon size={12} color={statusColor} />
                     )}

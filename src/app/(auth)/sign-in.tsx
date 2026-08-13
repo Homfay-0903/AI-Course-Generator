@@ -34,6 +34,7 @@ export default function SignInScreen() {
   const [secondFactorStrategy, setSecondFactorStrategy] =
     useState<SecondFactorStrategy | null>(null);
   const [serverError, setServerError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const isLoading = fetchStatus === 'fetching';
 
@@ -78,6 +79,7 @@ export default function SignInScreen() {
   const onSubmit = async () => {
     if (!signIn) return;
     setServerError('');
+    setSubmitting(true);
 
     try {
       const result = await signIn.create({
@@ -109,12 +111,15 @@ export default function SignInScreen() {
       const message =
         err instanceof Error ? err.message : '登录失败，请检查邮箱和密码';
       setServerError(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const verifyCode = async () => {
     if (!signIn || !secondFactorStrategy) return;
     setServerError('');
+    setSubmitting(true);
 
     try {
       const mfa = signIn.mfa;
@@ -150,12 +155,15 @@ export default function SignInScreen() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '验证失败，请重试';
       setServerError(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const resendCode = async () => {
     if (!signIn || !secondFactorStrategy) return;
     setServerError('');
+    setSubmitting(true);
 
     try {
       if (secondFactorStrategy === 'email_code') {
@@ -175,6 +183,8 @@ export default function SignInScreen() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '验证码发送失败，请重试';
       setServerError(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -208,7 +218,12 @@ export default function SignInScreen() {
                 </ThemedText>
               ) : null}
 
-              <PrimaryButton label="验证并登录" onPress={verifyCode} />
+              <PrimaryButton
+                label="验证并登录"
+                loading={submitting}
+                loadingLabel="验证中…"
+                onPress={verifyCode}
+              />
 
               <ThemedText
                 type="linkPrimary"
@@ -257,7 +272,9 @@ export default function SignInScreen() {
               ) : null}
 
               <PrimaryButton
-                label={isLoading ? '登录中…' : '登录'}
+                label="登录"
+                loading={submitting || isLoading}
+                loadingLabel="登录中…"
                 onPress={onSubmit}
               />
 

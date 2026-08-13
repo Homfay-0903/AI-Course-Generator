@@ -1,7 +1,7 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { Alert, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CourseDialog, type CourseDialogData } from '@/components/game/course-dialog';
@@ -11,12 +11,14 @@ import { HonorShowcase } from '@/components/game/honor-showcase';
 import { PlayerInfoCard } from '@/components/game/player-info-card';
 import { UnlockableRealms } from '@/components/game/unlockable-realms';
 import { ThemedView } from '@/components/themed-view';
+import { ThemedActivityIndicator } from '@/components/ui/activity-indicator';
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { MOCK_GAME_STATE } from '@/data/game-data';
 import { isRealmLocked, REALM_DEFS } from '@/data/game-defs';
 import { useAuthGuard } from '@/hooks/use-auth-guard';
+import { useCourseGeneration } from '@/hooks/use-course-generation';
 import { useGameState } from '@/hooks/use-game-state';
-import { createCourseAndGenerate } from '@/lib/create-course';
 import type { RealmDef } from '@/data/game-defs';
 
 type RealmWithLock = RealmDef & { locked: boolean };
@@ -30,7 +32,8 @@ export default function HomeScreen() {
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogPreset, setDialogPreset] = useState<string | undefined>(undefined);
-  const [creating, setCreating] = useState(false);
+
+  const { overlay, dialogLoading, runCreate } = useCourseGeneration();
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
@@ -85,18 +88,15 @@ export default function HomeScreen() {
 
   const handleCourseSubmit = (data: CourseDialogData) => {
     if (!userEmail) return;
-    setCreating(true);
-    createCourseAndGenerate(userEmail, data, {
+    runCreate(userEmail, data, {
       onCourseCreated: () => {},
       setCourseStatus: () => {},
       onCourseUpdated: () => {},
       onError: (title, message) => {
-        setCreating(false);
         setDialogVisible(false);
         Alert.alert(title, message);
       },
       onDone: () => {
-        setCreating(false);
         setDialogVisible(false);
         if (gameState) refresh();
       },
@@ -112,7 +112,7 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.safeArea}>
           {/* ── 1. 玩家信息卡 ── */}
           {isSignedIn && statsLoading ? (
-            <ActivityIndicator size="small" style={styles.loader} />
+            <ThemedActivityIndicator size={24} style={styles.loader} />
           ) : (
             <PlayerInfoCard player={player} coins={coins} />
           )}
@@ -145,9 +145,15 @@ export default function HomeScreen() {
       <CourseDialog
         visible={dialogVisible}
         initialDescription={dialogPreset}
-        loading={creating}
+        loading={dialogLoading}
         onCancel={() => setDialogVisible(false)}
         onSubmit={handleCourseSubmit}
+      />
+
+      <LoadingOverlay
+        visible={overlay.visible}
+        message={overlay.message}
+        secondaryText="AI 正在生成内容，通常需要 1-2 分钟"
       />
     </ThemedView>
   );

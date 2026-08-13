@@ -2,12 +2,13 @@ import { useAuth, useUser } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, BookOpenCheck, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MarkdownContent } from '@/components/markdown-content';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SecondaryButton } from '@/components/ui/secondary-button';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -117,24 +118,9 @@ export default function LessonReaderScreen() {
     router.push({ pathname: '/lesson/[id]', params: { id: lessonId } });
   };
 
-  if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </ThemedView>
-    );
-  }
-
-  if (!data) {
-    return (
-      <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">课时不存在</ThemedText>
-      </ThemedView>
-    );
-  }
-
   return (
     <ThemedView style={styles.container}>
+      {data ? (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* ── Header bar ── */}
         <View style={styles.header}>
@@ -188,7 +174,9 @@ export default function LessonReaderScreen() {
               <SecondaryButton label="已完成本课" onPress={() => {}} />
             ) : (
               <PrimaryButton
-                label={completing ? '完成中…' : '完成本课'}
+                label="完成本课"
+                loading={completing}
+                loadingLabel="完成中…"
                 onPress={handleComplete}
               />
             )}
@@ -206,6 +194,16 @@ export default function LessonReaderScreen() {
           )}
         </View>
       </SafeAreaView>
+      ) : (
+        <ThemedView style={styles.center}>
+          {!loading && <ThemedText themeColor="textSecondary">课时不存在</ThemedText>}
+        </ThemedView>
+      )}
+      <LoadingOverlay
+        visible={loading}
+        message="课时加载中…"
+        secondaryText="正在加载课程内容…"
+      />
     </ThemedView>
   );
 }

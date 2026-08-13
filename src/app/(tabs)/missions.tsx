@@ -2,7 +2,7 @@ import { useAuth, useUser } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { Sparkles, Swords, Target, TrendingUp } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActiveCourses, type ActiveCourse } from '@/components/game/active-courses';
@@ -10,12 +10,14 @@ import { CourseDialog, type CourseDialogData } from '@/components/game/course-di
 import { DailyBounties } from '@/components/game/daily-bounties';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemedActivityIndicator } from '@/components/ui/activity-indicator';
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useAuthGuard } from '@/hooks/use-auth-guard';
+import { useCourseGeneration } from '@/hooks/use-course-generation';
 import { useGameState } from '@/hooks/use-game-state';
 import { useTheme } from '@/hooks/use-theme';
-import { createCourseAndGenerate, retryCourseGeneration } from '@/lib/create-course';
 
 export default function MissionsScreen() {
   const theme = useTheme();
@@ -26,9 +28,10 @@ export default function MissionsScreen() {
   const { state: gameState, claimBounty } = useGameState();
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [courses, setCourses] = useState<ActiveCourse[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+
+  const { overlay, dialogLoading, runCreate, runRetry } = useCourseGeneration();
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
@@ -69,10 +72,9 @@ export default function MissionsScreen() {
       return;
     }
 
-    setSubmitting(true);
     setDialogOpen(false);
 
-    createCourseAndGenerate(userEmail, data, {
+    runCreate(userEmail, data, {
       onCourseCreated: (course) => {
         setCourses((prev) => [course, ...prev]);
       },
@@ -83,7 +85,7 @@ export default function MissionsScreen() {
         setCourses((prev) => prev.map((c) => (c.id === course.id ? course : c)));
       },
       onError: (title, message) => Alert.alert(title, message),
-      onDone: () => setSubmitting(false),
+      onDone: () => {},
     });
   };
 
@@ -106,7 +108,7 @@ export default function MissionsScreen() {
         {
           text: '重新生成',
           onPress: () => {
-            retryCourseGeneration(userEmail, course.id, {
+            runRetry(userEmail, course.id, {
               onCourseCreated: () => {},
               setCourseStatus: (id, status) => {
                 setCourses((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
@@ -232,7 +234,7 @@ export default function MissionsScreen() {
 
           {/* ── Active courses ── */}
           {!authLoaded || coursesLoading ? (
-            <ActivityIndicator size="small" style={styles.loader} />
+            <ThemedActivityIndicator size={24} style={styles.loader} />
           ) : (
             <ActiveCourses
               courses={courses}
@@ -254,7 +256,13 @@ export default function MissionsScreen() {
         visible={dialogOpen}
         onCancel={() => setDialogOpen(false)}
         onSubmit={handleCreateCourse}
-        loading={submitting}
+        loading={dialogLoading}
+      />
+
+      <LoadingOverlay
+        visible={overlay.visible}
+        message={overlay.message}
+        secondaryText="AI 正在生成内容，通常需要 1-2 分钟"
       />
     </ThemedView>
   );

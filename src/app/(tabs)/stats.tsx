@@ -1,11 +1,12 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { BarChart3, BookOpen, CalendarDays, Flame, Sparkles } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemedActivityIndicator } from '@/components/ui/activity-indicator';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useGameState } from '@/hooks/use-game-state';
@@ -37,7 +38,7 @@ export default function StatsScreen() {
         </ThemedView>
 
         {!authLoaded || loading ? (
-          <ActivityIndicator size="small" style={styles.loader} />
+          <ThemedActivityIndicator size={24} style={styles.loader} />
         ) : isSignedIn ? (
           <View style={styles.statsGrid}>
             {statCards.map((stat) => (

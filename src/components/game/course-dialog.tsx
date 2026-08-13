@@ -203,7 +203,9 @@ export function CourseDialog({
               style={styles.actionBtn}
             />
             <PrimaryButton
-              label={loading ? '生成中…' : '开始生成'}
+              label="开始生成"
+              loading={loading}
+              loadingLabel="生成中…"
               onPress={handleSubmit}
               style={styles.actionBtn}
             />

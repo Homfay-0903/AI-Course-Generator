@@ -2,14 +2,16 @@ import { useAuth, useUser } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight, Circle, Loader } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CircularProgress } from '@/components/game/circular-progress';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { useCourseGeneration } from '@/hooks/use-course-generation';
 import { useTheme } from '@/hooks/use-theme';
 import type { RealmDifficulty } from '@/types/game';
 
@@ -51,6 +53,8 @@ export default function CourseDetailScreen() {
   const [progress, setProgress] = useState<{ completedLessons: number; totalLessons: number; percent: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { overlay, runRetry } = useCourseGeneration();
+
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
 
   const fetchCourse = async () => {
@@ -89,56 +93,35 @@ export default function CourseDetailScreen() {
     }
   }, [authLoaded, isSignedIn, router]);
 
-  const handleRetryGenerate = async () => {
+  const handleRetryGenerate = () => {
     if (!userEmail || !id) return;
-    try {
-      const res = await fetch(`/api/courses/${id}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        Alert.alert('生成失败', err.error ?? '请稍后重试');
-        return;
-      }
-      setCourse((c) => (c ? { ...c, status: 'generating' } : c));
-      Alert.alert('已开始生成', 'AI 正在重新生成课程内容，请稍候…');
-    } catch {
-      Alert.alert('网络错误', '请检查网络连接后重试');
-    }
+    runRetry(userEmail, id, {
+      onCourseCreated: () => {},
+      setCourseStatus: (courseId, status) =>
+        setCourse((c) => (c ? { ...c, status } : c)),
+      onCourseUpdated: () => {
+        void fetchCourse();
+      },
+      onError: (title, message) => Alert.alert(title, message),
+      onDone: () => {},
+    });
   };
 
-  if (loading) {
-    return (
-      <ThemedView style={styles.center}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </ThemedView>
-    );
-  }
-
-  if (!course) {
-    return (
-      <ThemedView style={styles.center}>
-        <ThemedText themeColor="textSecondary">课程不存在</ThemedText>
-      </ThemedView>
-    );
-  }
-
   const difficultyColor =
-    course.difficulty === 'beginner'
+    course?.difficulty === 'beginner'
       ? theme.primary
-      : course.difficulty === 'intermediate'
+      : course?.difficulty === 'intermediate'
         ? theme.accent
         : theme.textSecondary;
   const totalLessons = progress?.totalLessons ?? 0;
   const completedLessons = progress?.completedLessons ?? 0;
   const percent = progress?.percent ?? 0;
-  const isGenerating = course.status === 'generating';
-  const isFailed = course.status === 'failed';
+  const isGenerating = course?.status === 'generating';
+  const isFailed = course?.status === 'failed';
 
   return (
     <ThemedView style={styles.container}>
+      {course ? (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* ── Header bar ── */}
         <View style={styles.header}>
@@ -291,6 +274,16 @@ export default function CourseDetailScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+      ) : (
+        <ThemedView style={styles.center}>
+          {!loading && <ThemedText themeColor="textSecondary">课程不存在</ThemedText>}
+        </ThemedView>
+      )}
+      <LoadingOverlay
+        visible={loading || overlay.visible}
+        message={loading ? '课程加载中…' : overlay.message}
+        secondaryText={loading ? '正在加载课程内容…' : undefined}
+      />
     </ThemedView>
   );
 }

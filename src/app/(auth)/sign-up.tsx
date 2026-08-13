@@ -12,7 +12,7 @@ import { TextInput } from '@/components/ui/text-input';
 import { Spacing } from '@/constants/theme';
 
 export default function SignUpScreen() {
-  const { signUp, fetchStatus } = useSignUp();
+  const { signUp } = useSignUp();
 
   const [step, setStep] = useState<'form' | 'code'>('form');
   const [email, setEmail] = useState('');
@@ -20,13 +20,13 @@ export default function SignUpScreen() {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [serverError, setServerError] = useState('');
-
-  const isLoading = fetchStatus === 'fetching';
+  const [submitting, setSubmitting] = useState(false);
 
   // ── Step 1: Create sign-up + send email verification code ─
   const onSubmitForm = async () => {
     if (!signUp) return;
     setServerError('');
+    setSubmitting(true);
 
     try {
       await signUp.create({
@@ -46,6 +46,8 @@ export default function SignUpScreen() {
       setStep('code');
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : '注册失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -57,6 +59,7 @@ export default function SignUpScreen() {
       return;
     }
     setServerError('');
+    setSubmitting(true);
 
     try {
       const result = await signUp.verifications.verifyEmailCode({ code: code.trim() });
@@ -72,12 +75,15 @@ export default function SignUpScreen() {
       }
     } catch (err: unknown) {
       setServerError(err instanceof Error ? err.message : '验证失败');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const onResend = async () => {
     if (!signUp) return;
-    try { await signUp.verifications.sendEmailCode(); setCode(''); } catch { /* ignore */ }
+    setSubmitting(true);
+    try { await signUp.verifications.sendEmailCode(); setCode(''); } catch { /* ignore */ } finally { setSubmitting(false); }
   };
 
   // ── Code input UI ──────────────────────────────────────
@@ -102,11 +108,16 @@ export default function SignUpScreen() {
 
             {serverError ? <ThemedText type="small" style={styles.error}>{serverError}</ThemedText> : null}
 
-            <PrimaryButton label={isLoading ? '验证中…' : '验证并完成注册'} onPress={onSubmitCode} />
+            <PrimaryButton
+              label="验证并完成注册"
+              loading={submitting}
+              loadingLabel="验证中…"
+              onPress={onSubmitCode}
+            />
 
             <View style={styles.resendRow}>
               <ThemedText type="small" themeColor="textSecondary">没有收到验证码？</ThemedText>
-              <ThemedText type="linkPrimary" style={styles.resendLink} onPress={isLoading ? undefined : onResend}>重新发送</ThemedText>
+              <ThemedText type="linkPrimary" style={styles.resendLink} onPress={submitting ? undefined : onResend}>重新发送</ThemedText>
             </View>
 
             <SecondaryButton label="返回修改信息" onPress={() => { setStep('form'); setCode(''); setServerError(''); }} />
@@ -129,7 +140,12 @@ export default function SignUpScreen() {
 
           {serverError ? <ThemedText type="small" style={styles.error}>{serverError}</ThemedText> : null}
 
-          <PrimaryButton label={isLoading ? '发送验证码…' : '注册'} onPress={onSubmitForm} />
+          <PrimaryButton
+            label="注册"
+            loading={submitting}
+            loadingLabel="发送验证码…"
+            onPress={onSubmitForm}
+          />
           <ThemedText type="linkPrimary" style={styles.switchLink} onPress={() => router.replace('/(auth)/sign-in')}>已有账号？登录</ThemedText>
 
           <View nativeID="clerk-captcha" />

@@ -1,11 +1,12 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { router } from 'expo-router';
 import { CircleUser } from 'lucide-react-native';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ThemedActivityIndicator } from '@/components/ui/activity-indicator';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,7 +25,7 @@ export default function ProfileScreen() {
         </ThemedView>
 
         {!isLoaded ? (
-          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedActivityIndicator size={32} />
         ) : isSignedIn && user ? (
           <ThemedView type="backgroundElement" style={styles.card}>
             <ThemedView style={styles.avatar}>
